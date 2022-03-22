@@ -13,7 +13,12 @@
         "onLanguage:markdown",
         "onCommand:markdown-slide.openPreviewToTheSide"
     ],
+    "publisher": "cungen",
     "main": "./out/extension.js",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/cungen/markdown-slide.git"
+    },
     "contributes": {
         "commands": [
             {
@@ -76,7 +81,6 @@
         "glob": "^7.2.0",
         "hast-util-to-html": "^8.0.3",
         "highlight.js": "^11.5.0",
-        "lodash": "^4.17.21",
         "markdown-ast-to-tree": "^1.0.0",
         "mdast-util-from-markdown": "^1.2.0",
         "mdast-util-to-hast": "^12.1.1",
@@ -88,5 +92,8 @@
         "vite": "^2.8.6",
         "vue": "^3.2.31",
         "vue-tsc": "^0.32.1"
+    },
+    "dependencies": {
+        "lodash": "^4.17.21"
     }
 }
