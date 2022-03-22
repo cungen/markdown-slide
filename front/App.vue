@@ -1,26 +1,23 @@
 <template lang="pug">
 .app-container.theme-dark
-    .slide-container(v-if='path.length' :class='[operateClass]')
-        .slide(
-            v-for='(s, index) in currentList'
-            :key='index'
-            :class='{ active: index === currentIndex, before: index < currentIndex, after: index > currentIndex }'
-        )
-            .heading(v-html='getTitle(s)')
-            .content(v-if='isNavigable(s)')
+    .slide-container(v-if='root && root.children.length' :class='[operateClass]')
+        .slide
+            .heading(v-if='title' v-html='title')
+            .content(v-if='isCode(currentNode) || isImage(currentNode)')
+                div(v-html='getNodeHtml(currentNode)')
+            .content(v-else)
                 ul
                     li(
-                        v-for='(s, cIndex) in navigateList(s)'
+                        v-for='(child, cIndex) in currentChildren'
                         :key='cIndex'
-                        :class='{ active: cIndex === activeChildIndex && hasChild(currentSlide) }'
-                        v-html='s')
-            .content(v-else-if='getChildrenHtml(s)' v-html='getChildrenHtml(s)')
+                        v-html='getNodeHtml(child)'
+                    )
         .navigator
             NIcon.left(size='16px' :class='{ disabled: !hasParent }'): CaretLeft
             NIcon.up(size='16px' :class='{ disabled: !hasPrev }'): CaretUp
-            NIcon.right(size='16px' :class='{ disabled: !hasChild(currentSlide) }'): CaretRight
+            NIcon.right(size='16px' :class='{ disabled: !hasChild }'): CaretRight
             NIcon.down(size='16px' :class='{ disabled: !hasNext }'): CaretDown
-        .pager {{ path.map(i => i + 1).join('.') }} / {{ get(root, 'children.length') }}
+        //- .pager {{ path.map(i => i + 1).join('.') }} / {{ get(root, 'children.length') }}
 
     .slide-container(v-else)
         .no-data 暂无内容
@@ -29,8 +26,9 @@
 
 <script>
 import { defineComponent, ref } from "vue";
-import { get, last, pick } from "lodash";
+import { findIndex, get, last, pick } from "lodash";
 import { fromMarkdown } from "mdast-util-from-markdown";
+import { transform } from "markdown-ast-to-tree";
 import {
     NIcon,
     NRadioGroup,
@@ -66,40 +64,73 @@ export default defineComponent({
     },
     data() {
         return {
-            path: [],
             root: null,
+            path: [],
+            parents: [],
             operateClass: "",
             activeChildIndex: 0,
         };
     },
     computed: {
-        prevPath() {
-            const lastPath = last(this.path);
-            return [...this.path.slice(0, this.path.length - 1), lastPath - 1];
+        hasParent() {
+            return this.parents.length > 1;
         },
         hasPrev() {
-            return this.currentIndex > 0;
+            return this.currentNodeIndex > 0;
         },
-        hasParent() {
+        hasChild() {
             return (
-                this.path.length > 1 &&
-                this.currentList[this.currentIndex].parent
+                (this.currentNode.children || []).some((child) => {
+                    return child.children.length > 0;
+                }) ||
+                (this.currentNode.children > 1 &&
+                    (this.currentNode.children || []).some(
+                        (child) => this.isCode(child) || this.isImage(child)
+                    ))
             );
         },
         hasNext() {
-            return this.currentIndex < this.currentList.length - 1;
-        },
-        currentList() {
-            const node = this.getNode(this.path);
-            if (node && node.parent) {
-                return node.parent.children || [];
+            if (this.parentNode) {
+                return (
+                    this.currentNodeIndex < this.parentNode.children.length - 1
+                );
             }
+            return false;
         },
-        currentIndex() {
-            return last(this.path);
+        parentNode() {
+            if (this.parents.length > 1) {
+                const parent = this.parents[this.parents.length - 2];
+                if (this.needSkip(parent)) {
+                    return this.parents[this.parents.length - 3];
+                } else {
+                    return parent;
+                }
+            }
+            return null;
         },
-        currentSlide() {
-            return this.currentList[this.currentIndex];
+        currentNodeIndex() {
+            if (this.parentNode) {
+                return findIndex(this.parentNode.children, (child) => {
+                    if (this.needSkip(child)) {
+                        return child.children[0] === this.currentNode;
+                    } else {
+                        return child === this.currentNode;
+                    }
+                });
+            }
+            return 0;
+        },
+        currentNode() {
+            return last(this.parents);
+        },
+        currentChildren() {
+            return this.currentNode.children || [];
+        },
+        title() {
+            return this.parents
+                .filter(this.isHeading)
+                .map((item) => this.toHtml(item.node))
+                .join(" / ");
         },
     },
     created() {
@@ -126,81 +157,72 @@ export default defineComponent({
         ...pick(AstUtils, [
             "isHeading",
             "isList",
-            "hasChild",
-            "isNavigable",
-            "getChildrenHtml",
-            "navigateList",
+            "isListItem",
+            "isCode",
+            "isImage",
+            "toHtml",
+            "getNodeHtml",
         ]),
         init(content) {
-            this.root = AstUtils.transformToSlideTree(fromMarkdown(content));
-            console.log(this.root);
-            if (this.root.children.length) {
-                this.path = [0, 1];
-            } else {
-                this.path = [];
-            }
+            this.root = transform(fromMarkdown(content));
+            this.parents = [this.root];
         },
         handleKeyDown(e) {
-            const isNavigable = this.isNavigable(this.currentSlide);
-            const navigateList = this.navigateList(this.currentSlide);
             switch (e.keyCode) {
                 case 37: // left
                     if (this.hasParent) {
-                        this.activeChildIndex = 0;
-                        this.path.pop();
+                        this.popToParent();
                     }
                     this.operateClass = "left";
                     break;
                 case 38: // top
-                    if (isNavigable && this.activeChildIndex > 0) {
-                        this.activeChildIndex--;
-                    } else if (this.hasPrev) {
-                        this.path[this.path.length - 1] = last(this.path) - 1;
+                    if (this.hasPrev) {
+                        const prevNode =
+                            this.parentNode.children[this.currentNodeIndex - 1];
+                        this.popToParent();
+                        this.parents.push(prevNode);
                     }
+                    this.doSkipIfNeeded();
                     this.operateClass = "";
                     break;
                 case 39: // right
-                    if (this.hasChild(this.currentSlide)) {
-                        if (isNavigable) {
-                            this.path.push(this.activeChildIndex);
-                            this.activeChildIndex = 0;
-                        } else {
-                            this.path.push(0);
-                        }
+                    if (this.hasChild) {
+                        this.parents.push(this.currentChildren[0]);
                     }
+                    this.doSkipIfNeeded();
                     this.operateClass = "right";
                     break;
                 case 40: // bottom
                 case 32: // blank
                 case 13: // enter
-                    if (
-                        isNavigable &&
-                        this.activeChildIndex < navigateList.length - 1 &&
-                        this.hasChild(this.currentSlide)
-                    ) {
-                        this.activeChildIndex++;
-                    } else if (this.hasNext) {
-                        this.path[this.path.length - 1] = last(this.path) + 1;
+                    if (this.hasNext) {
+                        const nextNode =
+                            this.parentNode.children[this.currentNodeIndex + 1];
+                        this.popToParent();
+                        this.parents.push(nextNode);
                     }
+                    this.doSkipIfNeeded();
                     this.operateClass = "";
                     break;
             }
         },
-        getNode(path) {
-            let rs = this.root;
-            path.forEach((idx) => {
-                rs = rs.children[idx];
-            });
-            return rs;
-        },
-        getTitle(node) {
-            const titles = [];
-            let temp = node;
-            while (temp) {
-                titles.unshift(temp.title);
-                temp = temp.parent;
+        popToParent() {
+            this.parents.pop();
+            if (this.needSkip(this.currentNode)) {
+                this.parents.pop();
             }
-            return titles.filter((t) => t).join("&nbsp;/&nbsp;");
+        },
+        // heading with only one child can be skip
+        needSkip(node) {
+            return (
+                (node.children || []).length === 1 &&
+                (this.isHeading(node) || this.isListItem(node))
+            );
+        },
+        doSkipIfNeeded() {
+            if (this.needSkip(this.currentNode)) {
+                this.parents.push(this.currentChildren[0]);
+            }
         },
     },
 });
@@ -219,6 +241,7 @@ body
 html, body, #app
     display: flex
     flex: 1
+    width: 100%
     height: 100%
     overflow: hidden
 
@@ -249,7 +272,6 @@ h5
             padding: 0 0.24rem
             text-align: left
     ul, ol
-        flex: 1
         width: 100%
         font-size: 0.32rem
         ul, ol
@@ -257,13 +279,22 @@ h5
         li
             margin-bottom: 0.14rem
             transition: font-size 400ms, color 400ms
-    code
-        font-size: 22rem
+            code
+                max-height: 30vh
 
     li.active
         color: #18a058
         font-weight: 500
         font-size: 0.36rem
+    pre
+        margin: 0
+        padding: 0.04rem .12rem
+        border-radius: 0.08rem
+        background: rgba(#fff, 0.05)
+        code
+            line-height: 1.15
+            font-size: 0.24rem
+            max-height: 50vh
 
 // Theme
 .theme-dark
@@ -303,6 +334,7 @@ h5
 .app-container
     display: flex
     flex: 0 0 100%
+    width: 100%
     flex-direction: column
     color: #2c3e50
     overflow: hidden
@@ -367,16 +399,9 @@ h5
         font-weight: 500
         padding: 0.32rem 0 0.24rem
         opacity: 0.8
-    .title
-        display: flex
-        width: 100%
-        align-items: center
-        padding-left: 20px
-        box-sizing: border-box
-        font-size: 32px
-        text-align: left
     .content
         display: flex
+        justify-content: center
         flex: 1
         overflow: auto
         padding: 0 0.4rem
