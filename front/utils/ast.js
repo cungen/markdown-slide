@@ -1,5 +1,7 @@
 import { toHast } from "mdast-util-to-hast";
 import { toHtml } from "hast-util-to-html";
+import katex from "katex";
+import "katex/dist/katex.min.css";
 import hljs from "highlight.js";
 import "highlight.js/styles/monokai.css";
 
@@ -24,7 +26,17 @@ const AstUtils = {
     toHtml(node) {
         if (node) {
             try {
-                return toHtml(toHast(node));
+                const html = toHtml(toHast(node));
+                return html.replace(/\$\$[^$]*\$\$|\$[^$]*\$/, (match) => {
+                    return katex.renderToString(
+                        match.replace(/^\$+|\$+$/g, ""),
+                        {
+                            displayMode:
+                                match.startsWith("$$") && match.endsWith("$$"),
+                            throwOnError: false,
+                        }
+                    );
+                });
             } catch (e) {
                 console.log({ node }, e);
                 return "";

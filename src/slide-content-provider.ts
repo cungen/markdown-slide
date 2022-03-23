@@ -26,7 +26,7 @@ export class MarkdownSlideView {
     private jsAndCssFilesMaps: { [key: string]: string[] } = {};
 
     public constructor(private context: vscode.ExtensionContext) {
-        this.context = context
+        this.context = context;
     }
 
     private refreshAllPreviews() {
@@ -165,6 +165,10 @@ export class MarkdownSlideView {
                 {
                     enableFindWidget: true,
                     enableScripts: true, // TODO: This might be set by enableScriptExecution config. But for now we just enable it.
+                    localResourceRoots: [
+                        vscode.Uri.parse(path.dirname(sourceUri.fsPath)),
+                        vscode.Uri.parse(this.context.extensionPath),
+                    ],
                 }
             );
             previewPanel.iconPath = vscode.Uri.file(
@@ -173,8 +177,7 @@ export class MarkdownSlideView {
 
             // register previewPanel message events
             previewPanel.webview.onDidReceiveMessage(
-                (message) => {
-                },
+                (message) => {},
                 null,
                 this.context.subscriptions
             );
@@ -214,7 +217,12 @@ export class MarkdownSlideView {
 
         // render
         previewPanel.webview.html = getWebviewContent(this.context);
-        sendMessageToPanel(previewPanel, 'content', editor.document.getText())
+        sendMessageToPanel(
+            previewPanel,
+            "content",
+            editor.document.getText(),
+            sourceUri
+        );
     }
 
     /**
@@ -304,10 +312,21 @@ export class MarkdownSlideView {
     }, 300);
 }
 
-function sendMessageToPanel(panel: vscode.WebviewPanel, type: string, msg: string) {
+function sendMessageToPanel(
+    panel: vscode.WebviewPanel,
+    type: string,
+    msg: string,
+    sourceUri: Uri
+) {
     panel.webview.postMessage({
         command: type,
-        data: msg,
+        data: msg.replace(/!\[(.*?)\]\((.*?)\)/, (...args) => {
+            const url = args[2];
+            const src = panel.webview.asWebviewUri(
+                vscode.Uri.file(path.join(path.dirname(sourceUri.fsPath), url))
+            );
+            return `![${args[1]}](${src})`;
+        }),
     });
 }
 

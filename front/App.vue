@@ -3,7 +3,7 @@
     .slide-container(v-if='root && root.children.length' :class='[operateClass]')
         .slide
             .heading(v-if='title' v-html='title')
-            .content(v-if='isCode(currentNode) || isImage(currentNode)')
+            .content(v-if='isCode(currentNode) || isImage(currentNode) || isParagraph(currentNode)')
                 div(v-html='getNodeHtml(currentNode)')
             .content(v-else)
                 ul
@@ -39,16 +39,6 @@ import {
 import { CaretLeft, CaretUp, CaretRight, CaretDown } from "@vicons/fa";
 import content from "./data/mock";
 import AstUtils from "./utils/ast";
-
-// eslint-disable-next-line no-undef
-// const vscode = acquireVsCodeApi();
-
-// function update(text) {
-//     vscode.postMessage({
-//         command: "text",
-//         text: text,
-//     });
-// }
 
 export default defineComponent({
     components: {
@@ -160,6 +150,7 @@ export default defineComponent({
             "isListItem",
             "isCode",
             "isImage",
+            "isParagraph",
             "toHtml",
             "getNodeHtml",
         ]),
@@ -329,8 +320,7 @@ h5
         left: 100vw
     &.after
         left: -100vw
-</style>
-<style lang="sass" scoped>
+
 .app-container
     display: flex
     flex: 0 0 100%
