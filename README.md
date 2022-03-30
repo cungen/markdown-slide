@@ -4,21 +4,21 @@ Use the structure of the markdown content to generate the slides.
 
 ## Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
 
-For example if there is an image subfolder under your extension project workspace:
+\!\[Slide Display\]\(images/feature-x.png\)
 
-\!\[feature X\]\(images/feature-x.png\)
-
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+> Tip: You can use arrow keys to navigate slide.
 
 ## Release Notes
-
-Users appreciate release notes as you update your extension.
 
 ### 0.0.1
 
 1. 可以按ppt查看markdown文件
 2. 内容实时变化
+
+### 0.2.0
+
+1. Support katex display
+2. Support mermaid chart display
 
 **Enjoy!**

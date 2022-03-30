@@ -7,11 +7,8 @@
                 div(v-html='getNodeHtml(currentNode)')
             .content(v-else)
                 ul
-                    li(
-                        v-for='(child, cIndex) in currentChildren'
-                        :key='cIndex'
-                        v-html='getNodeHtml(child)'
-                    )
+                    li(v-for='(child, cIndex) in currentChildren' :key='cIndex')
+                        div(v-html='getNodeHtml(child)')
         .navigator
             NIcon.left(size='16px' :class='{ disabled: !hasParent }'): CaretLeft
             NIcon.up(size='16px' :class='{ disabled: !hasPrev }'): CaretUp
@@ -39,6 +36,7 @@ import {
 import { CaretLeft, CaretUp, CaretRight, CaretDown } from "@vicons/fa";
 import content from "./data/mock";
 import AstUtils from "./utils/ast";
+import mermaid from "mermaid";
 
 export default defineComponent({
     components: {
@@ -128,7 +126,6 @@ export default defineComponent({
             const message = event.data;
             switch (message.command) {
                 case "content":
-                    console.log("vue on msg", message.data);
                     this.init(message.data);
                     break;
             }
@@ -155,7 +152,9 @@ export default defineComponent({
             "getNodeHtml",
         ]),
         init(content) {
-            this.root = transform(fromMarkdown(content));
+            this.root = transform(
+                fromMarkdown(content.replaceAll("\\", "\\\\"))
+            );
             this.parents = [this.root];
         },
         handleKeyDown(e) {
@@ -196,6 +195,10 @@ export default defineComponent({
                     this.operateClass = "";
                     break;
             }
+
+            this.$nextTick(() => {
+                mermaid.init({ noteMargin: 10 }, ".language-mermaid");
+            });
         },
         popToParent() {
             this.parents.pop();
